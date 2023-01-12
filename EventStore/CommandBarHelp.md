@@ -55,7 +55,7 @@ public sealed class CommandBarProjection : MongoProjection<CommandBarDocument>
                     .Set(d => d.TenantId, evt.TenantId)
                     .Set(d => d.AggregateType, "Customer")
                     .Set(d => d.AggregateId, evt.CustomerId)
-                    .PushEach(d => d.Options, new[]
+                    .AddToSetEach(d => d.Options, new[]
                     {
                         new CommandBarOption($"View Customer - {evt.Name}",
                             $"{Nav.Page.CustomerView}/{evt.CustomerId}"),
@@ -73,7 +73,6 @@ public sealed class CommandBarProjection : MongoProjection<CommandBarDocument>
 
 How do I create idempotent updates that handle when a customer is created and then updated?
 
-* On Customer Added as show above, works fine, but it's not idempotent.
 * On Customer Edit, I don't know how to update each `CommandBarOption` in an idempotent fashion as 
  I don't think I can do multiple update calls during the handling of one event.
 * What would be easiest, is if I had the option of `.ReplaceOne()` in Eventous, but I don't.
