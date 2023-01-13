@@ -27,18 +27,6 @@ public sealed record CommandBarDocument : ProjectedDocument
     public string AggregateType { get; init; } = string.Empty;
     public CommandBarOption[] Options { get; init; } = Array.Empty<CommandBarOption>();
 }
-
-public sealed record CommandBarOption
-{
-    public CommandBarOption()
-    {
-    }
-
-    public CommandBarOption(string name, string value) => (Name, Value) = (name, value);
-
-    public string Name { get; init; } = string.Empty;
-    public string Value { get; init; } = string.Empty;
-}
 ```
 
 ### CommandBarProjection ###
@@ -48,31 +36,38 @@ public sealed class CommandBarProjection : MongoProjection<CommandBarDocument>
     /// <inheritdoc />
     public CommandBarProjection(IMongoDatabase database, TypeMapper? typeMap = null) : base(database, typeMap)
     {
-        On<CustomerEvents.V1.CustomerAdded>(builder =>
-            builder.UpdateOne
-                .DefaultId()
-                .Update((evt, update) => update
-                    .Set(d => d.TenantId, evt.TenantId)
-                    .Set(d => d.AggregateType, "Customer")
-                    .Set(d => d.AggregateId, evt.CustomerId)
-                    .AddToSetEach(d => d.Options, new[]
-                    {
-                        new CommandBarOption($"View Customer - {evt.Name}",
-                            $"{Nav.Page.CustomerView}/{evt.CustomerId}"),
-                        new CommandBarOption($"Edit Customer - {evt.Name}",
-                            $"{Nav.Page.CustomerEdit}/{evt.CustomerId}"),
-                        new CommandBarOption($"Find Orders for {evt.Name}",
-                            $"{Nav.Page.OrderList}/?cust={evt.CustomerId}")
-                    })
-                ));
+        On<CustomerEvents.V1.CustomerAdded>(builder => builder.UpdateOne
+            .Id(x => x.Stream.GetId() + "View")
+            .Update((evt, update) => update
+                .Set(d => d.TenantId, evt.TenantId)
+                .Set(d => d.AggregateId, evt.CustomerId)
+                .Set(d => d.AggregateType, "Customer")
+                .Set(d => d.OptionName, $"View Customer - {evt.Name}")
+                .Set(d => d.OptionValue, $"{Nav.Page.CustomerView}/{evt.CustomerId}")
+            ));
+        On<CustomerEvents.V1.CustomerAdded>(builder => builder.UpdateOne
+            .Id(x => x.Stream.GetId() + "Edit")
+            .Update((evt, update) => update
+                .Set(d => d.TenantId, evt.TenantId)
+                .Set(d => d.AggregateId, evt.CustomerId)
+                .Set(d => d.AggregateType, "Customer")
+                .Set(d => d.OptionName, $"Edit Customer - {evt.Name}")
+                .Set(d => d.OptionValue, $"{Nav.Page.CustomerEdit}/{evt.CustomerId}")
+            ));
+        On<CustomerEvents.V1.CustomerAdded>(builder => builder.UpdateOne
+            .Id(x => x.Stream.GetId() + "OrderList")
+            .Update((evt, update) => update
+                .Set(d => d.TenantId, evt.TenantId)
+                .Set(d => d.AggregateId, evt.CustomerId)
+                .Set(d => d.AggregateType, "Customer")
+                .Set(d => d.OptionName, $"Find Orders for {evt.Name}")
+                .Set(d => d.OptionValue, $"{Nav.Page.OrderList}/?cust={evt.CustomerId}")
+            ));
     }
 }
 ```
 
 ## Challenge ##
 
-How do I create idempotent updates that handle when a customer is created and then updated?
-
-* On Customer Edit, I don't know how to update each `CommandBarOption` in an idempotent fashion as 
- I don't think I can do multiple update calls during the handling of one event.
-* What would be easiest, is if I had the option of `.ReplaceOne()` in Eventous, but I don't.
+How do I update multiple documents in a collection based on the same event.  
+The above code doesn't work because I get an error `Type CustomerAdded aready has a handler`.
